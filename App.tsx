@@ -5,7 +5,6 @@ import KeywordChecker from './components/KeywordChecker';
 import ImageResultViewer from './components/ImageResultViewer';
 import ImageDetailModal from './components/ImageDetailModal';
 import { generateTitle, generateJsonPrompt, generateImages } from './services/geminiService';
-import type { AspectRatio } from './types';
 import Button from './components/ui/Button';
 
 // API Key Modal Component defined within App.tsx to avoid creating new files
@@ -85,7 +84,6 @@ const App: React.FC = () => {
     const [sidePanelContent, setSidePanelContent] = useState<'none' | 'checker' | 'images'>('none');
 
     const [imagePrompt, setImagePrompt] = useState<string>('');
-    const [aspectRatio, setAspectRatio] = useState<AspectRatio>('1:1');
     const [numImages, setNumImages] = useState<number>(1);
     const [generatedImages, setGeneratedImages] = useState<string[]>([]);
     const [isGeneratingImages, setIsGeneratingImages] = useState<boolean>(false);
@@ -166,7 +164,7 @@ const App: React.FC = () => {
         setGeneratedImages([]);
         setSidePanelContent('images');
         try {
-            const images = await generateImages(apiKey!, imagePrompt, numImages, aspectRatio);
+            const images = await generateImages(apiKey!, imagePrompt, numImages);
             setGeneratedImages(images);
         } catch (e) {
             setError(e instanceof Error ? e.message : 'An unknown error occurred during image generation.');
@@ -175,7 +173,7 @@ const App: React.FC = () => {
         } finally {
             setIsGeneratingImages(false);
         }
-    }, [imagePrompt, numImages, aspectRatio, apiKey, checkApiKey]);
+    }, [imagePrompt, numImages, apiKey, checkApiKey]);
     
     const closeSidePanel = () => setSidePanelContent('none');
 
@@ -223,8 +221,6 @@ const App: React.FC = () => {
                         <ImageGenerator
                             prompt={imagePrompt}
                             setPrompt={setImagePrompt}
-                            aspectRatio={aspectRatio}
-                            setAspectRatio={setAspectRatio}
                             numImages={numImages}
                             setNumImages={setNumImages}
                             isGenerating={isGeneratingImages}

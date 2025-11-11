@@ -1,5 +1,5 @@
-import { GoogleGenAI, Type } from "@google/genai";
-import type { AspectRatio, JsonPromptStructure } from '../types';
+import { GoogleGenAI, Type, Modality } from "@google/genai";
+import type { JsonPromptStructure } from '../types';
 
 export const generateTitle = async (apiKey: string, keywords: string): Promise<string> => {
     try {
@@ -104,27 +104,56 @@ For each generation, introduce creative variations in fields like 'camera_viewpo
 
 export const generateImages = async (
     apiKey: string,
-    prompt: string,
-    numberOfImages: number,
-    aspectRatio: AspectRatio
+    prompt: string, // This is the JSON prompt string
+    numberOfImages: number
 ): Promise<string[]> => {
     try {
         const ai = new GoogleGenAI({ apiKey });
-        const enhancedPrompt = `${prompt}, pure photorealism, lifelike, natural lighting, ultra-high detail, sharp focus, professional photography, no digital artifacts`;
 
-        const response = await ai.models.generateImages({
-            model: 'imagen-4.0-generate-001',
-            prompt: enhancedPrompt,
-            config: {
-                numberOfImages,
-                aspectRatio,
-                outputMimeType: 'image/jpeg',
-            },
+        // Step 1: Convert JSON prompt to a descriptive text prompt. This is still a good step.
+        const summarizationResponse = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `Based on the following JSON object which describes a stock photo, create a concise, single-paragraph, highly descriptive text prompt for an AI image generator. The prompt should capture the essence of the 'subject_core', 'context_environment', 'lighting_description', and 'mood_and_tone'. Focus on visual details. Do not mention JSON in your output. Just provide the creative prompt. JSON: ${prompt}`,
         });
+        
+        const descriptivePrompt = summarizationResponse.text.trim();
 
-        return response.generatedImages.map(img => `data:image/jpeg;base64,${img.image.imageBytes}`);
+        // Step 2: Generate images using gemini-2.5-flash-image in parallel
+        const imageGenerationPromises = Array(numberOfImages).fill(0).map(() => 
+            ai.models.generateContent({
+                model: 'gemini-2.5-flash-image', // Using nano banana
+                contents: {
+                    parts: [{ text: descriptivePrompt }],
+                },
+                config: {
+                    responseModalities: [Modality.IMAGE], // Required for this model
+                },
+            })
+        );
+        
+        const responses = await Promise.all(imageGenerationPromises);
+
+        const imageUrls: string[] = [];
+        for (const response of responses) {
+            const part = response?.candidates?.[0]?.content?.parts?.[0];
+            if (part?.inlineData) {
+                const base64ImageBytes: string = part.inlineData.data;
+                const mimeType = part.inlineData.mimeType;
+                const imageUrl = `data:${mimeType};base64,${base64ImageBytes}`;
+                imageUrls.push(imageUrl);
+            }
+        }
+        
+        if (imageUrls.length === 0) {
+             throw new Error("The AI model did not return any images. This could be due to a safety policy violation in the prompt.");
+        }
+
+        return imageUrls;
     } catch (error) {
         console.error("Error generating images:", error);
+        if (error instanceof Error && error.message.toLowerCase().includes('safety')) {
+             throw new Error("Image generation failed due to a safety policy violation. Please try a different prompt.");
+        }
         throw new Error("Failed to generate images from AI. Check your API Key and network connection.");
     }
 };
