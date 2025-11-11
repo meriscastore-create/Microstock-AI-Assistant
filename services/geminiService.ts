@@ -110,23 +110,39 @@ export const generateImages = async (
     try {
         const ai = new GoogleGenAI({ apiKey });
 
-        // Step 1: Convert JSON prompt to a descriptive text prompt. This is still a good step.
-        const summarizationResponse = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: `Based on the following JSON object which describes a stock photo, create a concise, single-paragraph, highly descriptive text prompt for an AI image generator. The prompt should capture the essence of the 'subject_core', 'context_environment', 'lighting_description', and 'mood_and_tone'. Focus on visual details. Do not mention JSON in your output. Just provide the creative prompt. JSON: ${prompt}`,
-        });
+        // Step 1: Manually construct a descriptive prompt from the JSON object.
+        // This is more reliable, faster, and cheaper than making an extra AI call.
+        const promptData: JsonPromptStructure = JSON.parse(prompt);
         
-        const descriptivePrompt = summarizationResponse.text.trim();
+        const promptParts = [
+            promptData.subject_core,
+            promptData.subject_details,
+            promptData.context_environment,
+            promptData.style_and_approach,
+            promptData.lighting_description,
+            promptData.camera_viewpoint,
+            promptData.mood_and_tone,
+            promptData.composition_structure,
+            `detailed texture, ${promptData.texture_and_material_detail}`,
+            promptData.image_quality_description,
+        ];
+        
+        // Filter out any empty or undefined parts and join them with commas.
+        const descriptivePrompt = promptParts.filter(part => part && typeof part === 'string' && part.trim() !== '').join(', ');
 
-        // Step 2: Generate images using gemini-2.5-flash-image in parallel
+        if (!descriptivePrompt) {
+            throw new Error("Could not construct a valid image prompt from the provided JSON data. Key fields might be empty.");
+        }
+
+        // Step 2: Generate images using the constructed prompt in parallel
         const imageGenerationPromises = Array(numberOfImages).fill(0).map(() => 
             ai.models.generateContent({
-                model: 'gemini-2.5-flash-image', // Using nano banana
+                model: 'gemini-2.5-flash-image',
                 contents: {
                     parts: [{ text: descriptivePrompt }],
                 },
                 config: {
-                    responseModalities: [Modality.IMAGE], // Required for this model
+                    responseModalities: [Modality.IMAGE],
                 },
             })
         );
@@ -151,6 +167,9 @@ export const generateImages = async (
         return imageUrls;
     } catch (error) {
         console.error("Error generating images:", error);
+        if (error instanceof SyntaxError) {
+             throw new Error("Failed to generate images: The provided prompt is not valid JSON.");
+        }
         if (error instanceof Error && error.message.toLowerCase().includes('safety')) {
              throw new Error("Image generation failed due to a safety policy violation. Please try a different prompt.");
         }
