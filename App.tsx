@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import TitleGenerator from './components/TitleGenerator';
 import ImageGenerator from './components/ImageGenerator';
 import KeywordChecker from './components/KeywordChecker';
@@ -6,8 +6,74 @@ import ImageResultViewer from './components/ImageResultViewer';
 import ImageDetailModal from './components/ImageDetailModal';
 import { generateTitle, generateJsonPrompt, generateImages } from './services/geminiService';
 import type { AspectRatio } from './types';
+import Button from './components/ui/Button';
+
+// API Key Modal Component defined within App.tsx to avoid creating new files
+const ApiKeyModal: React.FC<{ onSave: (key: string) => void }> = ({ onSave }) => {
+    const [localKey, setLocalKey] = useState('');
+
+    const handleSave = () => {
+        if (localKey.trim()) {
+            onSave(localKey.trim());
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4 animate-fade-in">
+            <div className="bg-gray-900 rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4">
+                <h2 className="text-xl font-semibold text-brand-accent">Enter Your API Key</h2>
+                <p className="text-gray-400 text-sm">
+                    To use this application, please provide your Google AI API key. Your key is stored securely in your browser's session and is never sent to our servers.
+                </p>
+                <div>
+                    <label htmlFor="api-key-input" className="block text-sm font-medium text-brand-light mb-1">
+                        Google AI API Key
+                    </label>
+                    <input
+                        id="api-key-input"
+                        type="password"
+                        value={localKey}
+                        onChange={(e) => setLocalKey(e.target.value)}
+                        placeholder="Enter your key here"
+                        className="w-full p-2 bg-brand-dark border border-gray-600 rounded-md focus:ring-2 focus:ring-brand-secondary focus:outline-none"
+                    />
+                </div>
+                <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-brand-accent hover:underline"
+                >
+                    Get your API Key from Google AI Studio &rarr;
+                </a>
+                <Button onClick={handleSave} disabled={!localKey.trim()} className="w-full">
+                    Save and Continue
+                </Button>
+            </div>
+        </div>
+    );
+};
+
 
 const App: React.FC = () => {
+    const [apiKey, setApiKey] = useState<string | null>(null);
+    const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+
+    useEffect(() => {
+        const storedKey = sessionStorage.getItem('gemini-api-key');
+        if (storedKey) {
+            setApiKey(storedKey);
+        } else {
+            setShowApiKeyModal(true);
+        }
+    }, []);
+
+    const handleSaveApiKey = (key: string) => {
+        setApiKey(key);
+        sessionStorage.setItem('gemini-api-key', key);
+        setShowApiKeyModal(false);
+    };
+
     const [keywords, setKeywords] = useState<string>('');
     const [generatedTitle, setGeneratedTitle] = useState<string>('');
     const [generatedJsonPrompt, setGeneratedJsonPrompt] = useState<string>('');
@@ -26,10 +92,20 @@ const App: React.FC = () => {
 
     const [error, setError] = useState<string | null>(null);
     const [viewingImage, setViewingImage] = useState<string | null>(null);
+    
+    const checkApiKey = useCallback(() => {
+        if (!apiKey) {
+            setError('Please set your Google AI API Key before generating content.');
+            setShowApiKeyModal(true);
+            return false;
+        }
+        setError(null);
+        return true;
+    }, [apiKey]);
 
     const handleGenerateTitle = useCallback(async () => {
-        if (!keywords.trim()) {
-            setError('Please enter some keywords.');
+        if (!checkApiKey() || !keywords.trim()) {
+            if (!keywords.trim()) setError('Please enter some keywords.');
             return;
         }
         setIsGeneratingTitle(true);
@@ -38,7 +114,7 @@ const App: React.FC = () => {
         setGeneratedJsonPrompt('');
         setSidePanelContent('none');
         try {
-            const title = await generateTitle(keywords);
+            const title = await generateTitle(apiKey!, keywords);
             setGeneratedTitle(title);
         } catch (e) {
             setError(e instanceof Error ? e.message : 'An unknown error occurred during title generation.');
@@ -46,18 +122,18 @@ const App: React.FC = () => {
         } finally {
             setIsGeneratingTitle(false);
         }
-    }, [keywords]);
+    }, [keywords, apiKey, checkApiKey]);
 
     const handleGenerateJsonPrompt = useCallback(async () => {
-        if (!generatedTitle) {
-            setError('Please generate a title first.');
+        if (!checkApiKey() || !generatedTitle) {
+            if(!generatedTitle) setError('Please generate a title first.');
             return;
         }
         setIsGeneratingJson(true);
         setError(null);
         setGeneratedJsonPrompt('');
         try {
-            const jsonPrompt = await generateJsonPrompt(generatedTitle);
+            const jsonPrompt = await generateJsonPrompt(apiKey!, generatedTitle);
             const parsedJson = JSON.parse(jsonPrompt);
             setGeneratedJsonPrompt(JSON.stringify(parsedJson, null, 2));
             setImagePrompt(jsonPrompt); // Set the raw JSON string as the image prompt
@@ -67,7 +143,7 @@ const App: React.FC = () => {
         } finally {
             setIsGeneratingJson(false);
         }
-    }, [generatedTitle]);
+    }, [generatedTitle, apiKey, checkApiKey]);
 
     const handleCheckKeywords = useCallback(() => {
         if (!generatedTitle) {
@@ -81,8 +157,8 @@ const App: React.FC = () => {
     }, [generatedTitle]);
 
     const handleGenerateImages = useCallback(async () => {
-        if (!imagePrompt.trim()) {
-            setError('Please enter a prompt for the image.');
+        if (!checkApiKey() || !imagePrompt.trim()) {
+             if(!imagePrompt.trim()) setError('Please enter a prompt for the image.');
             return;
         }
         setIsGeneratingImages(true);
@@ -90,7 +166,7 @@ const App: React.FC = () => {
         setGeneratedImages([]);
         setSidePanelContent('images');
         try {
-            const images = await generateImages(imagePrompt, numImages, aspectRatio);
+            const images = await generateImages(apiKey!, imagePrompt, numImages, aspectRatio);
             setGeneratedImages(images);
         } catch (e) {
             setError(e instanceof Error ? e.message : 'An unknown error occurred during image generation.');
@@ -99,7 +175,7 @@ const App: React.FC = () => {
         } finally {
             setIsGeneratingImages(false);
         }
-    }, [imagePrompt, numImages, aspectRatio]);
+    }, [imagePrompt, numImages, aspectRatio, apiKey, checkApiKey]);
     
     const closeSidePanel = () => setSidePanelContent('none');
 
@@ -109,11 +185,17 @@ const App: React.FC = () => {
 
     return (
         <>
+            {showApiKeyModal && <ApiKeyModal onSave={handleSaveApiKey} />}
             <div className="flex flex-col lg:flex-row h-screen bg-gray-800 text-white font-sans overflow-hidden">
                 <main className="flex-grow p-4 md:p-6 lg:p-8 space-y-6 overflow-y-auto w-full lg:w-7/12">
-                    <header>
-                        <h1 className="text-3xl md:text-4xl font-bold text-brand-accent">Microstock AI Assistant</h1>
-                        <p className="text-gray-400 mt-2">Generate SEO-friendly titles, detailed prompts, and stunning images for your stock portfolio.</p>
+                    <header className="flex justify-between items-start">
+                        <div>
+                            <h1 className="text-3xl md:text-4xl font-bold text-brand-accent">Microstock AI Assistant</h1>
+                            <p className="text-gray-400 mt-2">Generate SEO-friendly titles, detailed prompts, and stunning images for your stock portfolio.</p>
+                        </div>
+                        <Button variant="secondary" onClick={() => setShowApiKeyModal(true)}>
+                            API Key
+                        </Button>
                     </header>
 
                     {error && (

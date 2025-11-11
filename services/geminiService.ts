@@ -1,14 +1,9 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import type { AspectRatio, JsonPromptStructure } from '../types';
 
-if (!process.env.API_KEY) {
-    throw new Error("API_KEY environment variable is not set");
-}
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-export const generateTitle = async (keywords: string): Promise<string> => {
+export const generateTitle = async (apiKey: string, keywords: string): Promise<string> => {
     try {
+        const ai = new GoogleGenAI({ apiKey });
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: `Based on these keywords: "${keywords}", generate a single, highly descriptive, SEO-friendly title for a microstock photo or vector. The title should be structured to maximize searchability, clearly defining the subject, action, and environment. The total length of the title must not exceed 150 characters. Pay close attention to punctuation, using commas to separate distinct descriptive clauses.
@@ -23,7 +18,7 @@ Do not add any extra text, labels, or quotation marks around the generated title
         return response.text.trim();
     } catch (error) {
         console.error("Error generating title:", error);
-        throw new Error("Failed to generate title from AI.");
+        throw new Error("Failed to generate title from AI. Check your API Key and network connection.");
     }
 };
 
@@ -63,8 +58,9 @@ const promptSchema: any = {
 };
 
 
-export const generateJsonPrompt = async (title: string): Promise<string> => {
+export const generateJsonPrompt = async (apiKey: string, title: string): Promise<string> => {
     try {
+        const ai = new GoogleGenAI({ apiKey });
         const response = await ai.models.generateContent({
             model: "gemini-2.5-pro",
             contents: `Based on the following microstock title, generate a detailed JSON prompt for an AI image generator. The resulting image must be strictly photorealistic, suitable for a high-quality stock photo library. Fill out all fields of the provided schema with this photorealistic goal in mind.
@@ -85,16 +81,18 @@ For each generation, introduce creative variations in fields like 'camera_viewpo
         return response.text.trim();
     } catch (error) {
         console.error("Error generating JSON prompt:", error);
-        throw new Error("Failed to generate JSON prompt from AI.");
+        throw new Error("Failed to generate JSON prompt from AI. Check your API Key and network connection.");
     }
 };
 
 export const generateImages = async (
+    apiKey: string,
     prompt: string,
     numberOfImages: number,
     aspectRatio: AspectRatio
 ): Promise<string[]> => {
     try {
+        const ai = new GoogleGenAI({ apiKey });
         const enhancedPrompt = `${prompt}, pure photorealism, lifelike, natural lighting, ultra-high detail, sharp focus, professional photography, no digital artifacts`;
 
         const response = await ai.models.generateImages({
@@ -110,6 +108,6 @@ export const generateImages = async (
         return response.generatedImages.map(img => `data:image/jpeg;base64,${img.image.imageBytes}`);
     } catch (error) {
         console.error("Error generating images:", error);
-        throw new Error("Failed to generate images from AI.");
+        throw new Error("Failed to generate images from AI. Check your API Key and network connection.");
     }
 };
