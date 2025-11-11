@@ -1,0 +1,5 @@
+{
+  "name": "Microstock Title & Prompt Generator",
+  "description": "An AI-powered tool to generate SEO-friendly titles, detailed JSON prompts for image generation, and high-quality stock photos for microstock platforms.",
+  "requestFramePermissions": []
+}
