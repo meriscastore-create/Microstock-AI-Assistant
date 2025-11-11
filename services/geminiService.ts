@@ -79,16 +79,20 @@ export const generateJsonPrompt = async (apiKey: string, title: string): Promise
     try {
         const ai = new GoogleGenAI({ apiKey });
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-pro",
-            contents: `Based on the following microstock title, generate a detailed JSON prompt for an AI image generator. The resulting image must be strictly photorealistic, suitable for a high-quality stock photo library. Fill out all fields of the provided schema with this photorealistic goal in mind.
+            // Switched to Flash model for better reliability and speed with structured output.
+            model: "gemini-2.5-flash",
+            contents: `Analyze the following microstock title and generate a JSON object that strictly adheres to the provided schema. Your task is to translate the title into a detailed, photorealistic scene description for an image generator.
 
-Specifically:
-- Set 'type' to 'stock photo'.
-- Set 'style_and_approach' to a realistic photographic style (e.g., 'realistic lifestyle', 'modern product photography', 'natural editorial').
-- Ensure 'authenticity_and_postprocessing' describes a natural, lifelike image with subtle retouching only.
-- Emphasize realism, high detail, and professional lighting throughout the entire JSON structure.
+**Instructions:**
+1.  **Strict Adherence:** Fill out all required fields of the JSON schema.
+2.  **Photorealism:** Every field must contribute to creating a high-quality, realistic stock photograph.
+3.  **Core Subject:** The 'subject_core' and 'subject_details' must directly reflect the content of the title.
+4.  **Inference:** For fields not explicitly mentioned in the title (like lighting, camera angle), infer logical and professional choices that would be appropriate for a high-end stock photo.
+5.  **Keywords:** Extract the main nouns and adjectives from the title for the 'keywords_focus' array.
 
-For each generation, introduce creative variations in fields like 'camera_viewpoint', 'mood_and_tone', 'color_palette', and 'lighting_description' to inspire diverse image results, while ensuring the 'subject_core' and 'subject_details' remain faithful to the title. Title: "${title}"`,
+**Title to analyze:** "${title}"
+
+Produce ONLY the JSON object as your response.`,
             config: {
                 responseMimeType: "application/json",
                 responseSchema: promptSchema,
@@ -98,7 +102,7 @@ For each generation, introduce creative variations in fields like 'camera_viewpo
         return response.text.trim();
     } catch (error) {
         console.error("Error generating JSON prompt:", error);
-        throw new Error("Failed to generate JSON prompt from AI. Check your API Key and network connection.");
+        throw new Error("Failed to generate JSON prompt from AI. Check your API Key and network connection, or try a different title.");
     }
 };
 
