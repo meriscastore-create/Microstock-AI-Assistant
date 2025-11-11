@@ -51,10 +51,27 @@ const promptSchemaProperties = {
     target_market: { type: Type.STRING, description: "e.g., business, lifestyle, corporate." },
 };
 
+// Define only the CORE required properties. This gives the model more flexibility
+// and prevents failures if some non-essential fields (like 'facial_expression') aren't applicable.
+const requiredProperties = [
+    "type",
+    "purpose",
+    "subject_core",
+    "context_environment",
+    "lighting_description",
+    "composition_structure",
+    "camera_viewpoint",
+    "mood_and_tone",
+    "style_and_approach",
+    "image_quality_description",
+    "story_intent",
+    "keywords_focus",
+];
+
 const promptSchema: any = {
     type: Type.OBJECT,
     properties: promptSchemaProperties,
-    required: Object.keys(promptSchemaProperties)
+    required: requiredProperties,
 };
 
 
